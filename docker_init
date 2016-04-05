@@ -1,0 +1,25 @@
+#!/bin/sh
+set -e
+(cd glassfish && docker build -t glassfish:4.0 .)
+(cd icat && docker build -t icat:4.7.0 .)
+(cd mysql-client && docker build -t mysql-client:1.0.0 .)
+set +e
+docker stop mysql-server icat1 icat2
+docker rm mysql-server icat1 icat2
+docker network rm cats
+set -e
+docker network create cats
+docker run --net=cats --name mysql-server -e MYSQL_ROOT_PASSWORD=doughnuts -d mysql:latest
+while ! docker run --net=cats -t --rm mysql-client:1.0.0  mysqladmin ping -h mysql-server -pdoughnuts --silent; do
+    sleep 1
+done
+docker run --net=cats -t --rm mysql-client:1.0.0 mysql -h mysql-server -pdoughnuts -e "create user 'icat' identified by 'icat';"
+docker run --net=cats -t --rm mysql-client:1.0.0 mysql -h mysql-server -pdoughnuts -e "grant all on icat.* TO 'icat';"
+docker run --net=cats -t --rm mysql-client:1.0.0 mysql -h mysql-server -pdoughnuts -e "create database icat;"
+docker run --net=cats -d --name icat1 icat:4.7.0
+docker run --net=cats -d --name icat2 icat:4.7.0
+docker ps -a
+docker network inspect cats | grep 'IPv4Address\|Name' | grep -v cats
+
+
+
